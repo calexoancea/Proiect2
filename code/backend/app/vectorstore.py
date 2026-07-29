@@ -27,6 +27,10 @@ class DimensionMismatch(Exception):
 
 
 class VectorStore:
+    # Fixed namespace so chunk ids are deterministic across runs (Improvement #1:
+    # re-ingesting the same document REPLACES its chunks instead of duplicating them).
+    ID_NAMESPACE = uuid.UUID("7b1e6b2a-9c4d-4a3e-8f1a-6d2c9e0b5a11")
+
     def __init__(self) -> None:
         self.client = QdrantClient(url=settings.qdrant_url, timeout=10)
         self.collection = settings.qdrant_collection
@@ -51,9 +55,16 @@ class VectorStore:
 
     # --- data ----------------------------------------------------------------
     def upsert(self, chunks: list[str], vectors: list[list[float]], strategy: str,
-               source: str | None) -> list[str]:
-        ids = [str(uuid.uuid4()) for _ in chunks]
+               source: str | None, metadata: dict | None = None) -> list[str]:
+        """Store chunks with STABLE ids (derived from source+index) so a document
+        can be re-ingested to replace its old chunks, and with any extra
+        `metadata` (title, product, effective, version, ...) merged into the
+        payload so it becomes filterable and comes back in /search results."""
+        src = source or "adhoc"
+        ids = [str(uuid.uuid5(self.ID_NAMESPACE, f"{src}:{i}")) for i in range(len(chunks))]
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        meta = metadata or {}
+
         self.client.upsert(
             collection_name=self.collection,
             points=[
@@ -64,8 +75,9 @@ class VectorStore:
                         "text": text,
                         "index": i,
                         "strategy": strategy,
-                        "source": source or "adhoc",
+                        "source": src,
                         "ingested_at": now,
+                        **meta,
                     },
                 )
                 for i, (pid, text, vec) in enumerate(zip(ids, chunks, vectors))
@@ -77,6 +89,7 @@ class VectorStore:
         hits = self.client.query_points(
             collection_name=self.collection, query=vector, limit=top_k, with_payload=True
         ).points
+        reserved = {"text", "index", "strategy", "source", "ingested_at"}
         return [
             {
                 "id": str(h.id),
@@ -85,6 +98,7 @@ class VectorStore:
                 "index": (h.payload or {}).get("index"),
                 "strategy": (h.payload or {}).get("strategy"),
                 "source": (h.payload or {}).get("source"),
+                "metadata": {k: v for k, v in (h.payload or {}).items() if k not in reserved},
             }
             for h in hits
         ]

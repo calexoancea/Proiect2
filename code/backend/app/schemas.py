@@ -52,6 +52,7 @@ class IngestRequest(ChunkRequest):
     }]}}
 
     source: Optional[str] = Field(None, description="Label stored with every chunk (e.g. 'cards-faq')")
+    metadata: Optional[dict] = Field(None, description="title, product, audience, effective, version, ...")
 
 
 class IngestResponse(BaseModel):
@@ -62,6 +63,7 @@ class IngestResponse(BaseModel):
     embedding_model: dict
     point_ids: list[str]
     chunks: list[ChunkInfo]
+    metadata_stored: dict = Field(default_factory=dict)
 
 
 # --- retrieval ----------------------------------------------------------------
@@ -82,6 +84,7 @@ class SearchHit(BaseModel):
     strategy: Optional[str] = None
     source: Optional[str] = None
     id: str
+    metadata: dict = Field(default_factory=dict)
 
 
 class SearchResponse(BaseModel):
