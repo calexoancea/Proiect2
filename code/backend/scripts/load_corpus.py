@@ -112,7 +112,7 @@ def main() -> int:
                 metadata=metadata,
                 dry_run=args.dry_run,
             )
-            chunk_count = result.get("chunk_count") or result.get("chunks") or "?"
+            chunk_count = result.get("count", "?")
             print(f"    -> ok, chunks: {chunk_count}")
             if isinstance(chunk_count, int):
                 total_chunks += chunk_count

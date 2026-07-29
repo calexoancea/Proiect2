@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 
 from qdrant_client import QdrantClient, models
 
+from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
+
 from .config import settings
 
 
@@ -85,24 +87,59 @@ class VectorStore:
         )
         return ids
 
-    def search(self, vector: list[float], top_k: int) -> list[dict]:
-        hits = self.client.query_points(
-            collection_name=self.collection, query=vector, limit=top_k, with_payload=True
-        ).points
-        reserved = {"text", "index", "strategy", "source", "ingested_at"}
+    def search(self, query_vector: list[float], top_k: int = 5,
+           filters: dict | None = None, score_threshold: float | None = None) -> list[dict]:
+        """Embed-space nearest neighbours, optionally restricted by exact metadata
+        match (Improvement #2) and/or a minimum cosine score (Improvement #1) —
+        below the threshold, a hit is treated as noise, not evidence.
+
+        Numeric-looking filter values are matched against BOTH the native type and
+        its string form via a nested `should` (OR) filter: metadata such as
+        `version` can end up stored as a string depending on how it was ingested.
+        Qdrant's MatchAny requires a type-homogeneous list, so mixed int/str
+        values must be expressed as two separate FieldConditions, not one
+        MatchAny(any=[2, "2"]) — that combination is rejected server-side (500).
+        """
+        query_filter = None
+        if filters:
+            must_conditions = []
+            for key, value in filters.items():
+                if isinstance(value, (int, float)):
+                    must_conditions.append(
+                        Filter(
+                            should=[
+                                FieldCondition(key=key, match=MatchValue(value=value)),
+                                FieldCondition(key=key, match=MatchValue(value=str(value))),
+                            ]
+                        )
+                    )
+                else:
+                    must_conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
+            query_filter = Filter(must=must_conditions)
+
+        response = self.client.query_points(
+            collection_name=self.collection,
+            query=query_vector,
+            query_filter=query_filter,
+            limit=top_k,
+            score_threshold=score_threshold,
+        )
+
         return [
             {
-                "id": str(h.id),
-                "score": round(float(h.score), 4),
-                "text": (h.payload or {}).get("text", ""),
-                "index": (h.payload or {}).get("index"),
-                "strategy": (h.payload or {}).get("strategy"),
-                "source": (h.payload or {}).get("source"),
-                "metadata": {k: v for k, v in (h.payload or {}).items() if k not in reserved},
+                "score": r.score,
+                "text": r.payload.get("text", ""),
+                "index": r.payload.get("index"),
+                "strategy": r.payload.get("strategy"),
+                "source": r.payload.get("source"),
+                "id": str(r.id),
+                "metadata": {
+                    k: v for k, v in r.payload.items()
+                    if k not in {"text", "index", "strategy", "source", "ingested_at"}
+                },
             }
-            for h in hits
+            for r in response.points
         ]
-
     # --- introspection --------------------------------------------------------
     def info(self) -> dict:
         if not self.client.collection_exists(self.collection):

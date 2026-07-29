@@ -302,7 +302,7 @@ def search(req: SearchRequest) -> SearchResponse:
         raise HTTPException(status_code=404, detail="Collection is empty — POST /ingest first.")
     top_k = req.top_k or settings.top_k
     qvec = _embed([req.query])[0]
-    hits = store.search(qvec, top_k)
+    hits = store.search(qvec, top_k, filters=req.filters, score_threshold=req.score_threshold)
     return SearchResponse(
         query=req.query, top_k=top_k, embedding_model=_embedder().describe(),
         query_embedding_preview=[round(x, 5) for x in qvec[:8]],
@@ -352,7 +352,30 @@ def ask(req: AskRequest) -> AskResponse:
                                        "or set use_rag=false for a plain LLM answer.")
         top_k = req.top_k or settings.top_k
         qvec = _embed([req.question])[0]
-        retrieved = [SearchHit(**h) for h in store.search(qvec, top_k)]
+        retrieved = [
+            SearchHit(**h) for h in
+            store.search(qvec, top_k, filters=req.filters, score_threshold=req.score_threshold)
+        ]
+
+        # Improvement #1: an honest refusal when nothing clears the threshold —
+        # a persona with refuse_when_unsupported=True should not receive empty
+        # context and improvise an answer anyway.
+        if not retrieved and persona is not None and persona.refuse_when_unsupported:
+            return AskResponse(
+                answer="I could not find anything in the knowledge base that supports "
+                       "an answer to this question, so I am not going to guess.",
+                augmented=True,
+                fact_check=None,
+                provider="none",
+                model="none",
+                agent=AgentInfo(name=persona.name, display_name=persona.display_name,
+                                description=persona.description, mode="local",
+                                temperature=persona.temperature, style_rules=persona.style_rules),
+                system_prompt="",
+                prompt_sent="",
+                retrieved=[],
+                usage=None,
+            )
 
     chunks = [h.model_dump() for h in retrieved]
     mode = mode_requested

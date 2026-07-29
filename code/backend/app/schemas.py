@@ -71,10 +71,18 @@ class SearchRequest(BaseModel):
     model_config = {"json_schema_extra": {"examples": [{
         "query": "my card got frozen, what do I do?",
         "top_k": 3,
+        "filters": {"product": "cards"},
+        "score_threshold": 0.3,
     }]}}
 
     query: str = Field(..., min_length=1)
     top_k: Optional[int] = Field(None, ge=1, le=50)
+    filters: Optional[dict] = Field(
+        None, description="Match metadata fields exactly, e.g. {'product': 'mortgages', 'version': 2}"
+    )
+    score_threshold: Optional[float] = Field(
+        None, ge=0, le=1, description="Drop hits below this cosine score — below it, treat as 'not found'"
+    )
 
 
 class SearchHit(BaseModel):
@@ -107,6 +115,8 @@ class AskRequest(BaseModel):
     question: str = Field(..., min_length=1)
     use_rag: bool = Field(True, description="false = plain LLM; true = retrieve then augment")
     top_k: Optional[int] = Field(None, ge=1, le=50)
+    filters: Optional[dict] = Field(None, description="Restrict retrieval to matching metadata")
+    score_threshold: Optional[float] = Field(None, ge=0, le=1, description="Minimum cosine score to trust a hit")
     temperature: Optional[float] = Field(None, ge=0, le=2)
     agent: Optional[str] = Field(
         None,
