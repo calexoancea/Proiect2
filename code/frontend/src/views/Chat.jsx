@@ -25,6 +25,8 @@ export default function Chat({ agents, hostedOnly = [], foundry }) {
   const [error, setError] = useState(null)
   const [recording, setRecording] = useState(false)
   const [speakingIdx, setSpeakingIdx] = useState(null)
+  const [editingId, setEditingId] = useState(null)
+  const [editTitle, setEditTitle] = useState('')
   const endRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
@@ -37,7 +39,7 @@ export default function Chat({ agents, hostedOnly = [], foundry }) {
       const existing = prev.find((c) => c.id === id)
       const title = msgs.find((m) => m.role === 'user')?.text?.slice(0, 40) || 'New conversation'
       const updated = existing
-        ? prev.map((c) => (c.id === id ? { ...c, messages: msgs, title } : c))
+        ? prev.map((c) => (c.id === id ? { ...c, messages: msgs, title: c.renamed ? c.title : title } : c))
         : [{ id, title, messages: msgs, createdAt: Date.now() }, ...prev]
       saveConversations(updated)
       return updated
@@ -60,6 +62,21 @@ export default function Chat({ agents, hostedOnly = [], foundry }) {
     setConversations(updated)
     saveConversations(updated)
     if (activeId === id) { setActiveId(null); setMessages([]) }
+  }
+
+  function startRename(id, currentTitle) {
+    setEditingId(id)
+    setEditTitle(currentTitle)
+  }
+
+  function commitRename(id) {
+    const title = editTitle.trim()
+    if (title) {
+      const updated = conversations.map((c) => (c.id === id ? { ...c, title, renamed: true } : c))
+      setConversations(updated)
+      saveConversations(updated)
+    }
+    setEditingId(null)
   }
 
   // --- sending ---------------------------------------------------------------
@@ -162,10 +179,27 @@ export default function Chat({ agents, hostedOnly = [], foundry }) {
         {conversations.length === 0 && <p className="muted" style={{ fontSize: '.85rem' }}>No conversations yet</p>}
         {conversations.map((c) => (
           <div key={c.id} className={`history-item ${activeId === c.id ? 'active' : ''}`}>
-            <button className="history-title" onClick={() => openConversation(c.id)}>
-              {c.title || 'Conversation'}
-            </button>
-            <button className="history-delete" onClick={() => deleteConversation(c.id)} title="Delete">✕</button>
+            {editingId === c.id ? (
+              <input
+                className="history-title-input"
+                value={editTitle}
+                autoFocus
+                onChange={(e) => setEditTitle(e.target.value)}
+                onBlur={() => commitRename(c.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRename(c.id)
+                  if (e.key === 'Escape') setEditingId(null)
+                }}
+              />
+            ) : (
+              <button className="history-title" onClick={() => openConversation(c.id)}>
+                {c.title || 'Conversation'}
+              </button>
+            )}
+            <div className="history-actions">
+              <button className="history-rename" onClick={() => startRename(c.id, c.title)} title="Rename">✎</button>
+              <button className="history-delete" onClick={() => deleteConversation(c.id)} title="Delete">✕</button>
+            </div>
           </div>
         ))}
       </aside>
@@ -289,14 +323,14 @@ export default function Chat({ agents, hostedOnly = [], foundry }) {
 
         <Err error={error} />
         <div className="composer">
-          <button className={`btn btn-outline ${recording ? 'recording' : ''}`} onClick={toggleRecording}
+          <button className={`btn btn-outline btn-mic ${recording ? 'recording' : ''}`} onClick={toggleRecording}
                   title={recording ? 'Stop recording' : 'Record a question'}>
             {recording ? '⏹' : '🎤'}
           </button>
           <textarea value={question} placeholder="Ask Suzy…  (Enter to send, Shift+Enter for a new line)"
                     onChange={(e) => setQuestion(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} />
-          <button className="btn btn-primary" onClick={send} disabled={busy || !question.trim()}>Send</button>
+          <button className="btn btn-primary btn-send" onClick={send} disabled={busy || !question.trim()}>Send</button>
         </div>
       </div>
     </div>
