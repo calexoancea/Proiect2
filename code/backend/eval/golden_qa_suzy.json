@@ -1,0 +1,101 @@
+[
+  {
+    "id": "q1",
+    "category": "factual_clear",
+    "question": "What is the origination fee for a mortgage in 2026?",
+    "expected_answer_contains": ["0.4%", "2,500 lei"],
+    "source_should_be": "mortgage-fees-2026"
+  },
+  {
+    "id": "q2",
+    "category": "factual_clear",
+    "question": "What is the minimum down payment for a first home mortgage in 2026?",
+    "expected_answer_any_of": [["twenty percent", "20%"]],
+    "source_should_be": "mortgage-fees-2026"
+  },
+  {
+    "id": "q3",
+    "category": "factual_clear",
+    "question": "Which fees apply for early repayment on a mortgage?",
+    "expected_answer_any_of": [["1%"], ["fixed-rate"], ["no fee", "no early-repayment fee"], ["variable-rate"]],
+    "source_should_be": "mortgage-fees-2026 or mortgage-early-repayment-calc"
+  },
+  {
+    "id": "q4",
+    "category": "precision_change",
+    "question": "Did the down payment requirement change from 2025 to 2026?",
+    "expected_answer_any_of": [["fifteen percent", "15%"], ["twenty percent", "20%"], ["raised", "increased"]],
+    "source_should_be": "mortgage-fees-2026"
+  },
+  {
+    "id": "q5",
+    "category": "precision_change",
+    "question": "Did the origination fee change between 2025 and 2026?",
+    "expected_answer_contains": ["0.5%", "0.4%", "reduced"],
+    "source_should_be": "mortgage-fees-2026"
+  },
+  {
+    "id": "q6",
+    "category": "precision_change",
+    "question": "Is the early repayment fee during the fixed-rate period the same as last year?",
+    "expected_answer_contains": ["1%", "unchanged", "2025"],
+    "source_should_be": "mortgage-fees-2026"
+  },
+  {
+    "id": "q7",
+    "category": "refusal_out_of_scope",
+    "question": "What is the interest rate on a car loan?",
+    "expected_behavior": "refuse",
+    "source_should_be": "none"
+  },
+  {
+    "id": "q8",
+    "category": "refusal_out_of_scope",
+    "question": "What is the current EURIBOR rate used for mortgage pricing?",
+    "expected_behavior": "refuse",
+    "source_should_be": "none"
+  },
+  {
+    "id": "q9",
+    "category": "refusal_out_of_scope",
+    "question": "Can Suzy approve my loan application directly?",
+    "expected_behavior": "refuse or clarify",
+    "source_should_be": "none"
+  },
+  {
+    "id": "q10",
+    "category": "late_payment",
+    "question": "What is the late payment penalty for a mortgage?",
+    "expected_answer_contains": ["0.1%", "day 6"],
+    "source_should_be": "mortgage-fees-2025 or mortgage-fees-2026"
+  },
+  {
+    "id": "q11",
+    "category": "factual_clear",
+    "question": "What is the annual fee for a Gold credit card?",
+    "expected_answer_contains": ["150 lei"],
+    "source_should_be": "credit-card-annual-fees-2026"
+  },
+  {
+    "id": "q12",
+    "category": "factual_clear",
+    "question": "What is the maximum credit limit for a credit card?",
+    "expected_answer_any_of": [["50,000 lei", "50000 lei"]],
+    "source_should_be": "credit-card-limits-2026"
+  },
+  {
+    "id": "q13",
+    "category": "factual_clear",
+    "question": "What is the cash withdrawal interest rate on a credit card?",
+    "expected_answer_any_of": [["26.9%"]],
+    "source_should_be": "credit-card-late-fees-2026"
+  },
+  {
+    "id": "q14",
+    "category": "distinction",
+    "question": "Is the late payment penalty the same for a mortgage and a credit card?",
+    "expected_answer_any_of": [["0.1%"], ["0.2%"], ["different", "not the same"]],
+    "source_should_be": "both"
+  }
+
+]

@@ -17,6 +17,10 @@ import httpx
 
 from ..config import settings
 
+import subprocess
+import tempfile
+import os
+
 # 24 kHz mono PCM in a RIFF container — plays in any browser, no codec needed
 TTS_FORMAT = "riff-24khz-16bit-mono-pcm"
 
@@ -138,3 +142,29 @@ def transcribe(audio: bytes, content_type: str = "audio/wav", language: str | No
 
 def _escape(text: str) -> str:
     return (text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+def convert_webm_to_wav(webm_bytes: bytes) -> bytes:
+    webm_fd, webm_path = tempfile.mkstemp(suffix=".webm")
+    wav_fd, wav_path = tempfile.mkstemp(suffix=".wav")
+    os.close(webm_fd)
+    os.close(wav_fd)
+
+    try:
+        with open(webm_path, "wb") as f:
+            f.write(webm_bytes)
+
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", webm_path, "-ar", "16000", "-ac", "1",
+             "-acodec", "pcm_s16le", "-f", "wav", wav_path],
+            check=True, capture_output=True,
+        )
+
+        with open(wav_path, "rb") as f:
+            return f.read()
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode(errors="replace") if e.stderr else "no stderr captured"
+        raise RuntimeError(f"ffmpeg failed: {stderr}")
+    finally:
+        os.remove(webm_path)
+        if os.path.exists(wav_path):
+            os.remove(wav_path)

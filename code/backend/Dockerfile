@@ -5,6 +5,7 @@ WORKDIR /srv
 # Dependencies first — cached until pyproject/lock change
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 COPY app ./app
 

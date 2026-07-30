@@ -27,6 +27,7 @@ from .schemas import (
 from .services import aisearch, speech, web
 from .vectorstore import DimensionMismatch, VectorStore
 
+
 app = FastAPI(
     title="RAG Teaching API",
     description=(
@@ -658,9 +659,6 @@ def web_search(req: WebSearchRequest) -> WebSearchResponse:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Web search failed: {e}")
-    # Zero hits from the keyless engine is not "nothing matched" — it is the engine
-    # declining to answer a scraper. Saying so is the difference between a lesson and
-    # a mystery, and it is the case a classroom will hit first, all searching at once.
     keyless = "keyless" in provider
     if not hits and keyless:
         note = ("The engine returned a page with no results in it. That is what screen "
@@ -693,7 +691,6 @@ def fact_check(req: FactCheckRequest) -> FactCheckResponse:
     what an agent would orchestrate on its own once it is given the tools. Doing
     it explicitly first makes the agent version legible rather than magical.
     """
-    # Explicit URLs make a demo deterministic — no search, nothing to rate-limit.
     if req.urls:
         hits = [web.SearchHitWeb(rank=i, title=u, url=u, snippet="")
                 for i, u in enumerate(req.urls, start=1)]
@@ -815,14 +812,23 @@ def azure_search_status() -> dict:
 
 
 @app.post("/tools/transcribe", response_model=TranscribeResponse, tags=["6 · tools"])
-async def transcribe(file: UploadFile = File(..., description="WAV, 16 kHz mono, under ~60 s")):
-    """Speech → text (Azure AI Speech). Upload the WAV you just generated and
-    watch it come back as text — the round trip in two calls."""
+async def transcribe(file: UploadFile = File(..., description="WAV or WebM, under ~60 s")):
+    """Speech → text (Azure AI Speech). Upload WAV or a browser-recorded WebM —
+    WebM is converted to WAV first, since Azure Speech only accepts WAV/OGG."""
     audio = await file.read()
     if not audio:
         raise HTTPException(status_code=422, detail="The uploaded file is empty.")
+
+    content_type = file.content_type or "audio/wav"
+    if "webm" in content_type:
+        try:
+            audio = speech.convert_webm_to_wav(audio)
+            content_type = "audio/wav"
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"WebM to WAV conversion failed: {e}")
+
     try:
-        result = speech.transcribe(audio, content_type=file.content_type or "audio/wav")
+        result = speech.transcribe(audio, content_type=content_type)
     except speech.SpeechUnavailable as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
